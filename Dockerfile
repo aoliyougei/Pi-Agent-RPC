@@ -49,6 +49,7 @@ RUN npm run build:offline
 RUN mkdir -p /artifacts/pi-packages && node /tmp/pack-pi-packages.mjs
 
 FROM registry.aoliyougei.com/library/node:22-alpine AS runtime-builder
+RUN apk add --no-cache python3 make g++
 WORKDIR /build
 COPY --from=pi-builder /artifacts/pi-packages /artifacts/pi-packages
 COPY vendor /vendor
@@ -57,6 +58,8 @@ COPY scripts/verify-bridge-artifacts.mjs /tmp/verify-bridge-artifacts.mjs
 RUN node /tmp/verify-bridge-artifacts.mjs
 RUN files=$(find /artifacts/pi-packages /vendor -name '*.tgz' -type f | sort) && \
     npm install --global --prefix /artifacts/runtime --ignore-scripts $files && \
+    cd /artifacts/runtime/lib/node_modules/@aoliyougei/pi-web-agent-server && \
+    npm_config_nodedir=/usr/local npm rebuild fs-ext && \
     /artifacts/runtime/bin/pi --version && \
     test -x /artifacts/runtime/bin/pi-agent-rpc
 
@@ -79,7 +82,11 @@ RUN apk add --no-cache bash ca-certificates curl fd file git jq openssh-client r
 COPY --from=runtime-builder /artifacts/runtime/ /usr/local/
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 COPY pi-agent-rpc-healthcheck /usr/local/bin/pi-agent-rpc-healthcheck
-RUN chmod 0755 /usr/local/bin/docker-entrypoint.sh /usr/local/bin/pi-agent-rpc-healthcheck
+COPY pi-cli-wrapper.sh /tmp/pi-cli-wrapper.sh
+RUN mkdir -p /usr/local/libexec && \
+    ln -s /usr/local/lib/node_modules/@earendil-works/pi-coding-agent/dist/cli.js /usr/local/libexec/pi-real && \
+    rm /usr/local/bin/pi && mv /tmp/pi-cli-wrapper.sh /usr/local/bin/pi && \
+    chmod 0755 /usr/local/bin/pi /usr/local/bin/docker-entrypoint.sh /usr/local/bin/pi-agent-rpc-healthcheck
 USER node
 WORKDIR /app
 EXPOSE 8080

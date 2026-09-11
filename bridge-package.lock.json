@@ -8,13 +8,13 @@
       "name": "@aoliyougei/pi-agent-contract",
       "version": "0.1.0",
       "file": "agent-contract-0.1.0.tgz",
-      "sha256": "9d1b4984373b85b1fb4ea7b0267a4d2f4a982209a88219bb814816d647174c81"
+      "sha256": "e854e2921ba860395dc947107eaa70e543e3116ab9dc3268b7d4742e98691f89"
     },
     {
       "name": "@aoliyougei/pi-web-agent-server",
       "version": "0.1.0",
       "file": "pi-web-agent-server-0.1.0.tgz",
-      "sha256": "d7b6d83ace80d04d679488d9735b3b864d3e296454d04d5a9d2795bddd8158d4",
+      "sha256": "e3ef865d29891749c91d6b27fd788fbf54f83f86e903f3cb65474aa41033a54e",
       "compatiblePiVersion": "0.84.4"
     }
   ]
