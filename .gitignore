@@ -1,0 +1,11 @@
+node_modules/
+.artifacts/
+dist/
+build/
+.env
+.env.*
+*.log
+*.pem
+secrets/
+vendor/*.tgz
+!vendor/.gitkeep
