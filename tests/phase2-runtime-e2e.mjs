@@ -16,7 +16,7 @@ const { getRpcSession } = await import("/usr/local/lib/node_modules/@aoliyougei/
 const { SessionManager } = await import("/usr/local/lib/node_modules/@earendil-works/pi-coding-agent/dist/index.js");
 const token = "phase2-acceptance-token";
 const agent = createAgentRouteAdapter();
-const app = createAgentServer({ token, version: { protocolVersion: 1, serverVersion: "0.1.0", piVersion: "0.84.4", piRevision: "b79e4cc834970cca69daebffab7df1da7d1e52c4", capabilities: ["extension-ui", "custom-ui", "remote-files", "subagents", "session-locks"] }, agent, eventBufferCapacity: 32 });
+const app = createAgentServer({ token, version: { protocolVersion: 1, serverVersion: "0.2.0", piVersion: "1.2.0", piRevision: "06a466935536f8c9bcacb2d5efc0fc021be1bdff", capabilities: ["extension-ui", "custom-ui", "remote-files", "subagents", "session-locks"] }, agent, eventBufferCapacity: 32 });
 await app.listen("127.0.0.1", 0);
 const base = `http://127.0.0.1:${app.address().port}/internal/v1/api/agent`;
 const auth = { authorization: `Bearer ${token}` };

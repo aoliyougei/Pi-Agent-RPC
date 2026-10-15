@@ -1,0 +1,30 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { AgentSessionRuntime, SessionManager } from "@earendil-works/pi-coding-agent";
+import { installSessionManagerLocks } from "../dist/runtime/session-manager-lock.js";
+import { installSessionImportLocks } from "../dist/runtime/session-import-lock.js";
+import { acquireSessionLock } from "../dist/runtime/session-lock.js";
+
+test("Pi 1.2 import locks the suffixed destination and preserves an existing file", async (t) => {
+  const root = mkdtempSync(join(tmpdir(), "rpc-import-collision-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const sessions = join(root, "sessions"), locks = join(root, "locks");
+  mkdirSync(sessions);
+  const source = join(root, "import.jsonl"), existing = join(sessions, "import.jsonl"), target = join(sessions, "import-1.jsonl");
+  writeFileSync(source, JSON.stringify({ type: "session", version: 3, id: "import", timestamp: new Date().toISOString(), cwd: root }) + "\n");
+  writeFileSync(existing, "preserve existing bytes");
+  const guard = installSessionManagerLocks(SessionManager, { directory: locks, owner: "cli", piVersion: "1.2.0" });
+  t.after(() => guard.uninstall());
+  t.after(installSessionImportLocks(guard));
+  const manager = SessionManager.create(root, sessions);
+  const session = { sessionManager: manager, sessionFile: manager.getSessionFile(), extensionRunner: { hasHandlers: () => false } };
+  const runtime = new AgentSessionRuntime(session, { cwd: root, agentDir: root }, () => { throw new Error("must not reach factory"); });
+  const held = acquireSessionLock(target, locks, "rpc");
+  t.after(() => held.release());
+  await assert.rejects(runtime.importFromJsonl(source), { code: "session_locked" });
+  assert.equal(readFileSync(existing, "utf8"), "preserve existing bytes");
+  assert.equal(runtime.session.sessionManager, manager);
+});

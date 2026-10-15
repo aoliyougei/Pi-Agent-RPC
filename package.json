@@ -1,0 +1,20 @@
+{
+  "name": "pi-agent-rpc",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "workspaces": ["packages/*", "source/upstream/pi/packages/*"],
+  "scripts": {
+    "build": "npm run build --workspace=@aoliyougei/pi-agent-contract && npm run build --workspace=@aoliyougei/pi-web-agent-server",
+    "test": "npm test --workspace=@aoliyougei/pi-agent-contract && npm test --workspace=@aoliyougei/pi-web-agent-server"
+  },
+  "engines": { "node": ">=22.19.0" },
+  "devDependencies": {
+    "@types/fs-ext": "2.0.3",
+    "@types/node": "25.0.3",
+    "@types/proper-lockfile": "4.1.4",
+    "@types/web-push": "3.6.4",
+    "typescript": "7.0.2",
+    "jiti": "2.7.0"
+  }
+}

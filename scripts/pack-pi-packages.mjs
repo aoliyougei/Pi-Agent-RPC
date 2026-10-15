@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
-const root = "/build/pi";
+const root = process.env.PI_SOURCE_DIR ?? "/build/pi";
 const output = "/artifacts/pi-packages";
 const dirs = [
   ...readdirSync(path.join(root, "packages")).map((name) => path.join(root, "packages", name)),
@@ -14,7 +14,7 @@ for (const dir of dirs) {
   const file = path.join(dir, "package.json");
   if (!existsSync(file)) continue;
   const pkg = JSON.parse(readFileSync(file, "utf8"));
-  if (pkg.name?.startsWith("@earendil-works/pi-")) packages.set(pkg.name, { dir, pkg });
+  if (pkg.name?.startsWith("@earendil-works/")) packages.set(pkg.name, { dir, pkg });
 }
 const needed = new Set(["@earendil-works/pi-coding-agent", "@earendil-works/pi-agent-core", "@earendil-works/pi-ai", "@earendil-works/pi-tui"]);
 const queue = [...needed];

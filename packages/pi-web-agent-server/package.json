@@ -1,0 +1,52 @@
+{
+  "name": "@aoliyougei/pi-web-agent-server",
+  "version": "0.2.0",
+  "type": "module",
+  "bin": {
+    "pi-agent-rpc": "dist/main.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "exports": "./dist/server.js",
+  "scripts": {
+    "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.json",
+    "test": "node --experimental-strip-types --test \"test/**/*.test.mjs\""
+  },
+  "dependencies": {
+    "@aoliyougei/pi-agent-contract": "0.1.0",
+    "fs-ext": "2.1.1",
+    "js-yaml": "^5.2.3",
+    "mammoth": "^1.12.0",
+    "proper-lockfile": "4.1.2",
+    "undici": "8.10.2",
+    "web-push": "^3.6.7"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-agent-core": "1.2.0",
+    "@earendil-works/pi-ai": "1.2.0",
+    "@earendil-works/pi-coding-agent": "1.2.0",
+    "@earendil-works/pi-tui": "1.2.0"
+  },
+  "peerDependenciesMeta": {
+    "@earendil-works/pi-agent-core": {
+      "optional": true
+    },
+    "@earendil-works/pi-ai": {
+      "optional": true
+    },
+    "@earendil-works/pi-coding-agent": {
+      "optional": true
+    },
+    "@earendil-works/pi-tui": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/fs-ext": "2.0.3",
+    "@types/node": "^25",
+    "@types/proper-lockfile": "4.1.4",
+    "@types/web-push": "^3.6.4",
+    "typescript": "^5"
+  }
+}
