@@ -47,6 +47,13 @@ test("rejects malformed and protocol-incompatible agent versions", () => {
   }
 });
 
+test("accepts optional project discovery and unknown future capabilities without requiring them", () => {
+  const extended = { ...validVersion, capabilities: [...validVersion.capabilities, "project-session-discovery", "future-capability"] };
+  assert.deepEqual(parseAgentVersion(extended), extended);
+  assert.deepEqual(parseAgentVersion(validVersion), validVersion);
+  assert.equal(REQUIRED_CAPABILITIES.includes("project-session-discovery"), false);
+});
+
 test("builds the stable network error envelope", () => {
   assert.deepEqual(agentError("unauthorized", "Unauthorized", "r1"), {
     error: { code: "unauthorized", message: "Unauthorized", requestId: "r1" },

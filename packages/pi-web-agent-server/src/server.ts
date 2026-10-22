@@ -35,9 +35,9 @@ export function createAgentServer(options: {
   const server: Server = createServer((request, response) => {
     void Promise.resolve(routeRequest(request, response, { ...options, dedup, events, ready: () => ready })).catch((error: unknown) => {
       if (response.headersSent) { response.destroy(); return; }
-      if (error && typeof error === "object" && "code" in error && error.code === "session_locked") {
-        response.writeHead(409, { "content-type": "application/json; charset=utf-8" });
-        response.end(JSON.stringify({ error: { code: "session_locked", message: "Session is already owned by another CLI or RPC runtime", requestId: request.headers["x-request-id"]?.toString() ?? "unknown" } }));
+      if (error instanceof Error && "status" in error && [400, 403, 409].includes(Number(error.status)) && "code" in error) {
+        response.writeHead(Number(error.status), { "content-type": "application/json; charset=utf-8" });
+        response.end(JSON.stringify({ error: { code: error.code, message: error.message, requestId: request.headers["x-request-id"]?.toString() ?? "unknown" } }));
         return;
       }
       response.writeHead(500, { "content-type": "application/json; charset=utf-8" });

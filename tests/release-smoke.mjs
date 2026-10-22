@@ -47,7 +47,7 @@ try {
   assert.equal((await fetch(`${base}/internal/v1/version`, { headers: { authorization: "Bearer wrong" } })).status, 401);
   assert.equal((await fetch(`${base}/internal/v1/health/ready`, { headers })).status, 200);
   const version = await (await fetch(`${base}/internal/v1/version`, { headers })).json();
-  assert.equal(version.serverVersion, "0.2.0");
+  assert.equal(version.serverVersion, "0.3.0");
   assert.equal(version.piVersion, "1.2.0");
   assert.equal(version.protocolVersion, 1);
   assert.equal(version.piRevision, "06a466935536f8c9bcacb2d5efc0fc021be1bdff");

@@ -6,4 +6,7 @@ export const REQUIRED_CAPABILITIES = [
   "session-locks",
 ] as const;
 
-export type AgentCapability = (typeof REQUIRED_CAPABILITIES)[number];
+export const OPTIONAL_CAPABILITIES = ["project-session-discovery"] as const;
+
+// Capability negotiation must tolerate additions from newer servers.
+export type AgentCapability = string;

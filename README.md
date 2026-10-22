@@ -5,7 +5,7 @@ in `source/upstream/pi` and the backend packages in `packages/`.
 
 | Component | Version |
 | --- | --- |
-| Project / Agent Server | 0.2.0 |
+| Project / Agent Server | 0.3.0 |
 | Official Pi | 1.2.0 |
 | Contract / wire protocol | 0.1.0 / v1 |
 
@@ -13,7 +13,7 @@ in `source/upstream/pi` and the backend packages in `packages/`.
 
 Use a Docker build environment (linux/amd64). `build-image.sh` is the human-facing
 Docker CLI entrypoint; automated agent work uses the Docker Engine API directly.
-The output tag is `pi-agent-rpc:0.2.0`. See `Dockerfile` and `UPSTREAM.md` for build
+The output tag is `pi-agent-rpc:0.3.0`. See `Dockerfile` and `UPSTREAM.md` for build
 inputs and provenance. Builds require network access; no API keys are needed.
 
 Pi's own lockfile governs its build. The root npm lockfile governs the backend
@@ -52,10 +52,19 @@ Upload `tests/` into a task-owned candidate-image container and run:
 
 These tests use a deterministic local provider, not a paid external model.
 The historical `verify-artifacts.sh` and bridge lock refer to the old vendor
-release and are not part of the 0.2.0 build.
+release and are not part of the current build.
+
+## Selected-project sessions (candidate)
+
+With optional capability `project-session-discovery`, pass a validated absolute
+`cwd` to session listing to include that directory's `.pi/sessions` alongside
+existing global history. Discovery does not depend on settings; `sessionDir`
+controls new-session storage only. Existing sessions keep their original files.
+See [the interface and cold-navigation guide](docs/project-session-discovery.md),
+including the shared session-lock requirement for multiple RPC/CLI processes.
 
 ## Upgrade notes
 
 The Web repository is not changed here. Its Pi-version compatibility gate must
 accept 1.2.0 before the two projects can be deployed together. See
-`docs/releases/0.2.0.md` for verification and remaining limits.
+`docs/releases/0.3.0.md` for verification and remaining limits.

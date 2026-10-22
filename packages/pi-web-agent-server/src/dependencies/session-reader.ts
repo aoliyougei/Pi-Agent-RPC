@@ -3,9 +3,10 @@ import {
   buildContextEntries as piBuildContextEntries,
   getAgentDir,
 } from "@earendil-works/pi-coding-agent";
-import { closeSync, type Dirent, fstatSync, openSync, readSync } from "fs";
-import { readdir } from "fs/promises";
-import { isAbsolute, join, normalize as normalizePath, relative, resolve as resolvePath, sep } from "path";
+import { closeSync, constants, type Dirent, existsSync, fstatSync, openSync, readSync, realpathSync } from "fs";
+import { open, readdir } from "fs/promises";
+import { createInterface } from "node:readline";
+import { isAbsolute, join, normalize as normalizePath, resolve as resolvePath } from "path";
 import type { AgentMessage, ImageContent, SessionEntry, SessionHeader, SessionInfo, SessionContext } from "./types.js";
 import type { SessionEntry as PiSessionEntry, SessionInfo as PiSessionInfo } from "@earendil-works/pi-coding-agent";
 import { normalizeToolCalls } from "./normalize.js";
@@ -15,6 +16,8 @@ import { MAX_TOOL_RESULT_IMAGE_BYTES, TOOL_RESULT_IMAGE_MIMES } from "./tool-res
 import { resolveProject, type ProjectInfo } from "./worktree.js";
 import { readSubagentRun, SUBAGENT_META_TYPE } from "./subagents.js";
 
+import { currentSessionCwd, projectSessionsDirectory, regularSessionPath, sessionIdConflict, validateSessionCwd } from "./session-scope.js";
+
 export { getAgentDir };
 
 const SESSION_HEADER_MAX_BYTES = 64 * 1024;
@@ -23,8 +26,9 @@ const SESSION_RELATION_MAX_LINES = 2;
 const SESSION_RESULT_MAX_BYTES = 256 * 1024;
 
 function readBoundedLines(filePath: string, maxBytes: number, maxLines: number): string[] {
-  const fd = openSync(filePath, "r");
+  const fd = openSync(filePath, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
   try {
+    if (!fstatSync(fd).isFile()) return [];
     const chunks: Buffer[] = [];
     let position = 0;
     let newlineCount = 0;
@@ -62,9 +66,11 @@ function readBoundedLines(filePath: string, maxBytes: number, maxLines: number):
 }
 
 function readBoundedTailLines(filePath: string, maxBytes: number): string[] {
-  const fd = openSync(filePath, "r");
+  const fd = openSync(filePath, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
   try {
-    const fileSize = fstatSync(fd).size;
+    const stats = fstatSync(fd);
+    if (!stats.isFile()) return [];
+    const fileSize = stats.size;
     const start = Math.max(0, fileSize - maxBytes);
     const buffer = Buffer.allocUnsafe(fileSize - start);
     const bytesRead = readSync(fd, buffer, 0, buffer.length, start);
@@ -141,13 +147,17 @@ export function mergeSessionLists(
 }
 
 async function loadAllSessions(): Promise<SessionInfo[]> {
-  const piSessions: PiSessionInfo[] = await SessionManager.listAll();
+  return projectSessionInfos(await SessionManager.listAll());
+}
+
+async function projectSessionInfos(piSessions: PiSessionInfo[]): Promise<SessionInfo[]> {
+  assertDistinctSessions(piSessions);
   const pathToId = new Map<string, string>();
-  for (const s of piSessions) pathToId.set(sessionPathKey(s.path), s.id);
+  for (const s of piSessions) pathToId.set(canonicalKey(s.path), s.id);
 
   const sessions = piSessions.map((s) => {
     cacheSessionPath(s.id, s.path);
-    const originSessionId = s.parentSessionPath ? pathToId.get(sessionPathKey(s.parentSessionPath)) : undefined;
+    const originSessionId = s.parentSessionPath ? pathToId.get(canonicalKey(s.parentSessionPath)) : undefined;
     let subagent = null;
     if (s.parentSessionPath) {
       try {
@@ -175,7 +185,28 @@ async function loadAllSessions(): Promise<SessionInfo[]> {
   return attachSessionProjectInfo(sessions);
 }
 
-export async function listAllSessions(options: { force?: boolean } = {}): Promise<SessionInfo[]> {
+export async function listAllSessions(options: { force?: boolean; cwd?: string } = {}): Promise<SessionInfo[]> {
+  if (options.cwd !== undefined) {
+    const cwd = await validateSessionCwd(options.cwd);
+    const global = await listAllSessions({ force: options.force });
+    const directory = projectSessionsDirectory(cwd);
+    if (!directory) return global;
+    const candidates = await projectCandidates(cwd, directory);
+    const local: PiSessionInfo[] = [];
+    for (const candidate of candidates) {
+      const info = await readProjectSessionInfo(candidate.path, directory, cwd);
+      if (info) local.push(info);
+    }
+    assertDistinctSessions([...global, ...local]);
+    const combined = [...global, ...await projectSessionInfos(local)];
+    const byPath = new Map(combined.map((item) => [canonicalKey(item.path), item.id]));
+    return [...new Map(combined.map((item) => {
+      const parent = readSessionHeader(item.path)?.parentSession;
+      const parentId = parent ? byPath.get(canonicalKey(parent)) : undefined;
+      return [canonicalKey(item.path), { ...item, parentSessionId: parentId,
+        ...(item.relation?.kind === "fork" ? { relation: { kind: "fork" as const, ...(parentId ? { originSessionId: parentId } : {}) } } : {}) }];
+    })).values()].sort((a, b) => b.modified.localeCompare(a.modified));
+  }
   if (options.force) invalidateSessionListCache();
   const generation = globalThis.__piSessionListGeneration ?? 0;
 
@@ -232,84 +263,102 @@ function defaultSessionsDir(): string {
   return join(getAgentDir(), "sessions");
 }
 
-function resolvePathWithinDefaultSessions(
-  filePath: string,
-  sessionsDir = resolvePath(defaultSessionsDir()),
-): string | null {
-  const candidatePath = resolvePath(filePath);
-  const relativePath = relative(sessionsDir, candidatePath);
-  return relativePath !== ""
-    && relativePath !== ".."
-    && !relativePath.startsWith(`..${sep}`)
-    && !isAbsolute(relativePath)
-    ? candidatePath
-    : null;
+function canonicalKey(file: string): string {
+  try { return sessionPathKey(realpathSync(file)); }
+  catch { return sessionPathKey(resolvePath(file)); }
 }
 
-async function findSessionPathById(sessionId: string): Promise<string | null> {
-  // The filename is only a candidate hint; the bounded header check remains
-  // authoritative so future layouts and malformed files use the full fallback.
-  if (!SESSION_ID_PATTERN.test(sessionId)) return null;
+export function assertSessionFileIdentity(file: string, id: string): void {
+  if (!file || !existsSync(file)) return; // SDK allocates paths before the first persisted message.
+  if (!regularSessionPath(file, resolvePath(file, "..")) || readSessionHeader(file)?.id !== id) throw sessionIdConflict();
+}
 
-  let projectDirs: Dirent[];
-  const sessionsDir = resolvePath(defaultSessionsDir());
-  try {
-    projectDirs = await readdir(sessionsDir, { withFileTypes: true });
-  } catch {
-    return null;
+export function assertDistinctSessions(sessions: ReadonlyArray<{ id: string; path: string }>): void {
+  const ids = new Map<string, string>();
+  for (const session of sessions) {
+    const key = canonicalKey(session.path);
+    const previous = ids.get(session.id);
+    if (previous && previous !== key) throw sessionIdConflict();
+    ids.set(session.id, key);
   }
+}
 
-  const suffix = `_${sessionId}.jsonl`;
-  let match: string | undefined;
-  for (const projectDir of projectDirs) {
-    if (!projectDir.isDirectory() && !projectDir.isSymbolicLink()) continue;
-    const projectPath = resolvePathWithinDefaultSessions(
-      join(sessionsDir, projectDir.name),
-      sessionsDir,
-    );
-    if (!projectPath) continue;
+async function directoryCandidates(directory: string, cwd?: string): Promise<Array<{ id: string; path: string }>> {
+  const candidates: Array<{ id: string; path: string }> = [];
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    if (!entry.name.endsWith(".jsonl") || !entry.isFile()) continue;
+    const file = join(directory, entry.name);
+    if (!regularSessionPath(file, directory)) continue;
+    let header: SessionHeader | null;
+    try { header = readSessionHeader(file); }
+    catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
+      throw error;
+    }
+    if (!header || (cwd !== undefined && canonicalKey(header.cwd) !== canonicalKey(cwd))) continue;
+    candidates.push({ id: header.id, path: file });
+  }
+  return candidates;
+}
 
-    let files: string[];
+async function projectCandidates(cwd: string, directory: string) {
+  return directoryCandidates(directory, cwd);
+}
+
+async function readProjectSessionInfo(file: string, directory: string, cwd: string): Promise<PiSessionInfo | null> {
+  if (!regularSessionPath(file, directory)) return null;
+  const handle = await open(file, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+  try {
+    const stats = await handle.stat();
+    if (!stats.isFile()) return null;
+    const header = readSessionHeader(file);
+    if (!header || canonicalKey(header.cwd) !== canonicalKey(cwd)) return null;
+    let name: string | undefined;
+    let messageCount = 0;
+    let firstMessage = "";
+    let modified = Date.parse(header.timestamp);
+    const lines = createInterface({ input: handle.createReadStream({ encoding: "utf8", autoClose: false }), crlfDelay: Infinity });
     try {
-      files = await readdir(projectPath);
-    } catch {
-      continue;
-    }
-
-    for (const file of files) {
-      if (!file.endsWith(suffix)) continue;
-      const candidate = resolvePathWithinDefaultSessions(
-        join(projectPath, file),
-        sessionsDir,
-      );
-      if (!candidate) continue;
-      try {
-        if (readSessionHeader(candidate)?.id !== sessionId) continue;
-      } catch {
-        continue;
+      for await (const line of lines) {
+        let entry: SessionEntry;
+        try { entry = JSON.parse(line) as SessionEntry; } catch { continue; }
+        if (!entry || typeof entry !== "object") continue;
+        if (entry.type === "session_info" && typeof entry.name === "string") name = entry.name.trim() || undefined;
+        if (entry.type !== "message" || !entry.message) continue;
+        messageCount += 1;
+        const time = typeof entry.message.timestamp === "number" ? entry.message.timestamp : Date.parse(entry.timestamp);
+        if (Number.isFinite(time)) modified = Number.isFinite(modified) ? Math.max(modified, time) : time;
+        if (!firstMessage && entry.message.role === "user") {
+          const content = entry.message.content;
+          firstMessage = typeof content === "string" ? content : Array.isArray(content)
+            ? content.filter((block) => block && block.type === "text").map((block) => "text" in block && typeof block.text === "string" ? block.text : "").join("\n") : "";
+        }
       }
-      // Do not choose between duplicate candidates; retain the existing
-      // catalogue fallback for its current resolution semantics.
-      if (match && match !== candidate) return null;
-      match = candidate;
-    }
-  }
-
-  return match ?? null;
+    } finally { lines.close(); }
+    return { path: file, id: header.id, cwd: header.cwd, name, parentSessionPath: header.parentSession,
+      created: new Date(header.timestamp), modified: Number.isFinite(modified) ? new Date(modified) : stats.mtime,
+      messageCount, firstMessage: firstMessage || "(no messages)", allMessagesText: "" };
+  } finally { await handle.close(); }
 }
 
-function findSessionIdByPath(filePath: string): string | undefined {
-  if (!filePath.endsWith(".jsonl")) return undefined;
-  const candidate = resolvePathWithinDefaultSessions(filePath);
-  if (!candidate) return undefined;
-  try {
-    const sessionId = readSessionHeader(candidate)?.id;
-    if (!sessionId) return undefined;
-    cacheSessionPath(sessionId, candidate);
-    return sessionId;
-  } catch {
-    return undefined;
+async function lookupCandidates(cwd?: string): Promise<Array<{ id: string; path: string }>> {
+  // Validate an explicit scope before scanning; validation itself only uses global discovery.
+  const selected = cwd === undefined ? undefined : await validateSessionCwd(cwd);
+  const candidates: Array<{ id: string; path: string }> = [];
+  let dirs: Dirent[];
+  try { dirs = await readdir(defaultSessionsDir(), { withFileTypes: true }); }
+  catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    dirs = [];
   }
+  for (const dir of dirs) {
+    if (!dir.isDirectory() && !dir.isSymbolicLink()) continue;
+    try { candidates.push(...await directoryCandidates(join(defaultSessionsDir(), dir.name))); }
+    catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
+  }
+  const project = selected ? projectSessionsDirectory(selected) : undefined;
+  if (project) candidates.push(...await projectCandidates(selected!, project));
+  return candidates;
 }
 
 export function invalidateSessionListCache(): void {
@@ -327,32 +376,24 @@ function getPathToIdCache(): Map<string, string> {
   return globalThis.__piPathToSessionIdCache;
 }
 
-export async function resolveSessionPath(sessionId: string): Promise<string | null> {
-  const cached = getPathCache().get(sessionId);
-  if (cached) return cached;
-
-  const targetedPath = await findSessionPathById(sessionId);
-  if (targetedPath) {
-    cacheSessionPath(sessionId, targetedPath);
-    return getPathCache().get(sessionId) ?? null;
+export async function resolveSessionPath(sessionId: string, cwd: string | undefined = currentSessionCwd()): Promise<string | null> {
+  if (!SESSION_ID_PATTERN.test(sessionId)) return null;
+  const candidates = (await lookupCandidates(cwd)).filter((item) => item.id === sessionId);
+  assertDistinctSessions(candidates);
+  if (candidates.length) {
+    cacheSessionPath(sessionId, candidates[0].path);
+    return candidates[0].path;
   }
-
-  // Unknown layouts, malformed candidates, and duplicate IDs retain the
-  // existing authoritative catalogue scan instead of negative-caching a miss.
-  await listAllSessions();
-  return getPathCache().get(sessionId) ?? null;
+  return null;
 }
 
-export async function resolveSessionIdByPath(filePath: string): Promise<string | undefined> {
-  const pathKey = sessionPathKey(filePath);
-  const cached = getPathToIdCache().get(pathKey);
-  if (cached) return cached;
-
-  const targetedId = findSessionIdByPath(filePath);
-  if (targetedId) return targetedId;
-
-  await listAllSessions();
-  return getPathToIdCache().get(pathKey);
+export async function resolveSessionIdByPath(filePath: string, cwd: string | undefined = currentSessionCwd()): Promise<string | undefined> {
+  const candidates = await lookupCandidates(cwd);
+  const candidate = candidates.find((item) => canonicalKey(item.path) === canonicalKey(filePath));
+  if (!candidate) return undefined;
+  assertDistinctSessions(candidates.filter((item) => item.id === candidate.id));
+  cacheSessionPath(candidate.id, candidate.path);
+  return candidate.id;
 }
 
 export function cacheSessionPath(sessionId: string, filePath: string): void {
@@ -395,7 +436,10 @@ export function readSessionHeader(filePath: string): SessionHeader | null {
   if (!firstLine) return null;
   try {
     const header = JSON.parse(firstLine) as SessionHeader;
-    return header.type === "session" ? header : null;
+    return header.type === "session" && typeof header.id === "string" && SESSION_ID_PATTERN.test(header.id)
+      && typeof header.cwd === "string" && isAbsolute(header.cwd) && typeof header.timestamp === "string" && Number.isFinite(Date.parse(header.timestamp))
+      && (header.parentSession === undefined || typeof header.parentSession === "string")
+      ? header : null;
   } catch {
     return null;
   }
@@ -439,6 +483,7 @@ export interface BuildSessionContextOptions {
   excludeLeaf?: boolean;
   /** Session id used to build lazy URLs for historical tool-result images. */
   sessionId?: string;
+  lookupCwd?: string;
 }
 
 export function buildSessionContext(
@@ -544,6 +589,7 @@ function deferToolResultBase64Images(
   message: AgentMessage,
   sessionId: string | undefined,
   entryId: string,
+  cwd?: string,
 ): AgentMessage {
   if (message.role !== "toolResult") return message;
 
@@ -566,7 +612,7 @@ function deferToolResultBase64Images(
       const source: ImageContent["source"] = {
         type: "url",
         media_type: image.mime,
-        url: `/api/sessions/${encodeURIComponent(sessionId)}/entries/${encodeURIComponent(entryId)}/tool-result-image?blockIndex=${blockIndex}`,
+        url: `/api/sessions/${encodeURIComponent(sessionId)}/entries/${encodeURIComponent(entryId)}/tool-result-image?blockIndex=${blockIndex}${cwd ? `&cwd=${encodeURIComponent(cwd)}` : ""}`,
       };
       return [{ type: "image", source } satisfies ImageContent];
     }
@@ -601,7 +647,7 @@ function entryToUiMessage(
   switch (entry.type) {
     case "message": {
       let message = options.deferToolResultImages
-        ? deferToolResultBase64Images(normalizeToolCalls(entry.message), options.sessionId, entry.id)
+        ? deferToolResultBase64Images(normalizeToolCalls(entry.message), options.sessionId, entry.id, options.lookupCwd ?? currentSessionCwd())
         : normalizeToolCalls(entry.message);
       const legacyContent = message.role === "assistant" ? (message as { content: unknown }).content : undefined;
       if (typeof legacyContent === "string") {

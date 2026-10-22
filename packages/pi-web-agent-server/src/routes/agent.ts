@@ -11,6 +11,9 @@ import {
 } from "@aoliyougei/pi-agent-contract";
 import { allowFileRoot } from "../dependencies/allowed-roots.js";
 import { RequestDeduplicator } from "../runtime/request-dedup.js";
+import { validateSessionCwd, withSessionCwd } from "../dependencies/session-scope.js";
+import { assertDistinctSessions, assertSessionFileIdentity, resolveSessionPath } from "../dependencies/session-reader.js";
+import { getRpcSession } from "../runtime/session-runtime.js";
 
 export interface AgentRouteRuntime {
   send(command: AgentCommand): Promise<unknown>;
@@ -67,12 +70,16 @@ function invalid(error: unknown): Error & { status: number } {
 function fail(response: ServerResponse, error: unknown, requestId: string): void {
   const status = typeof error === "object" && error && "status" in error ? Number(error.status) : undefined;
   const code = typeof error === "object" && error && "code" in error ? String(error.code) : undefined;
+  if (status === 403) {
+    send(response, status, agentError("invalid_request", error instanceof Error ? error.message : "Access denied", requestId));
+    return;
+  }
   if (status === 400 || status === 413 || status === 415) {
     const errorCode: AgentErrorCode = status === 413 ? "request_too_large" : "invalid_request";
     send(response, status, agentError(errorCode, error instanceof Error ? error.message : "Invalid request", requestId));
     return;
   }
-  if (code === "session_locked" || code === "request_id_conflict") {
+  if (code === "session_locked" || code === "request_id_conflict" || code === "session_id_conflict") {
     send(response, 409, agentError(code, error instanceof Error ? error.message : "Conflict", requestId));
     return;
   }
@@ -153,10 +160,15 @@ export async function routeAgentRequest(
   if (request.method !== "GET" && request.method !== "POST") return false;
   let command: AgentCommand;
   let bytes: Buffer | undefined;
+  let lookupCwd: string | undefined;
   try {
     if (request.method === "POST") {
       const body = await readJson(request);
-      command = parseAgentCommand(body.value);
+      const value = body.value;
+      if (value && typeof value === "object" && !Array.isArray(value) && "cwd" in value) {
+        lookupCwd = await validateSessionCwd(value.cwd);
+      }
+      command = parseAgentCommand(value);
       bytes = body.bytes;
     } else command = { type: "get_state" };
   } catch (error) {
@@ -175,7 +187,14 @@ export async function routeAgentRequest(
       send(response, 200, { running: true, state: await runtime.send(command) });
       return true;
     }
-    const operation = () => agent.send(id, command);
+    const file = await resolveSessionPath(id, lookupCwd);
+    const runtime = getRpcSession(id);
+    if (runtime?.isAlive()) assertSessionFileIdentity(runtime.sessionFile, id);
+    if (file && runtime?.isAlive()) assertDistinctSessions([{ id, path: file }, { id, path: runtime.sessionFile }]);
+    if (lookupCwd && !file && runtime?.isAlive() && runtime.cwd !== lookupCwd) {
+      throw Object.assign(new Error("Session is outside the selected lookup scope"), { status: 403, code: "invalid_request" });
+    }
+    const operation = () => withSessionCwd(lookupCwd, () => agent.send(id, command));
     const result = requestId === "unknown" ? await operation() : await dedup.run({
       id: requestId,
       fingerprint: createHash("sha256").update(request.method).update(path).update(bytes!).digest("hex"),
@@ -188,7 +207,7 @@ export async function routeAgentRequest(
     }
     send(response, 200, { success: true, data: result.data });
   } catch (error) {
-    if (typeof error === "object" && error && "code" in error && (error.code === "request_id_conflict" || error.code === "session_locked")) {
+    if (typeof error === "object" && error && "code" in error && (error.code === "request_id_conflict" || error.code === "session_locked" || error.code === "session_id_conflict" || error.code === "invalid_request")) {
       fail(response, error, requestId);
     } else if (command.type === "prompt") {
       send(response, 500, {

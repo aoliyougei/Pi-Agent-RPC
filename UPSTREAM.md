@@ -15,7 +15,7 @@ the official snapshot to implement RPC features.
 
 ## Build
 
-Project/server version: `0.2.0`. Contract version: `0.1.0` (wire protocol unchanged).
+Project/server version: `0.3.0`. Contract version: `0.1.0` (wire protocol unchanged).
 The Docker build compiles Pi from this snapshot and the backend from local
 sources. It uses the immutable official model catalog pinned in
 `source/upstream/pi/nix/model-catalog.json`, verifies its SHA-256, hydrates it only

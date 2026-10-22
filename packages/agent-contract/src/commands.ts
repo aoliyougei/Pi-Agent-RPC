@@ -28,6 +28,9 @@ export type AgentCommand =
   | { type: "extension_ui_input"; id: string; data: string }
   | { type: "bash"; command: string; excludeFromContext?: boolean };
 
+/** Transport metadata is stripped by the server before executing the command. */
+export type AgentCommandRequest = AgentCommand & { cwd?: string };
+
 export interface NewAgentRequest {
   cwd: string;
   command: AgentCommand | { type: "ensure_session" };

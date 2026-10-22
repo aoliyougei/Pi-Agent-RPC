@@ -1,4 +1,4 @@
-import { REQUIRED_CAPABILITIES, type AgentCapability } from "./capabilities.js";
+import type { AgentCapability } from "./capabilities.js";
 
 export const PROTOCOL_VERSION = 1 as const;
 
@@ -19,7 +19,7 @@ export function parseAgentVersion(value: unknown): AgentVersion {
     || typeof candidate.piVersion !== "string"
     || typeof candidate.piRevision !== "string"
     || !Array.isArray(candidate.capabilities)
-    || !candidate.capabilities.every((item) => typeof item === "string" && REQUIRED_CAPABILITIES.includes(item as AgentCapability))
+    || !candidate.capabilities.every((item) => typeof item === "string")
   ) {
     throw new Error("Invalid agent version");
   }

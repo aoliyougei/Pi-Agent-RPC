@@ -17,6 +17,9 @@ import { routeWorktrees } from "./routes/worktrees.js";
 import { routeBashOutput } from "./routes/bash-output.js";
 import { routeCustomUi } from "./routes/custom-ui.js";
 import { RequestDeduplicator } from "./runtime/request-dedup.js";
+import { currentSessionCwd, validateSessionCwd, withSessionCwd } from "./dependencies/session-scope.js";
+import { assertDistinctSessions, assertSessionFileIdentity, resolveSessionPath } from "./dependencies/session-reader.js";
+import { getRpcSession } from "./runtime/session-runtime.js";
 
 function send(response: ServerResponse, status: number, body: unknown): void {
   response.writeHead(status, { "content-type": "application/json; charset=utf-8" });
@@ -57,6 +60,34 @@ export async function routeRequest(
     send(response, 200, options.version);
     return;
   }
+  const query = new URL(request.url ?? "/", "http://internal").searchParams;
+  const scopedResource = /^\/internal\/v1\/api\/(?:sessions(?:\/|$)|agent\/[^/]+\/|agent\/[^/]+$|subagents\/[^/]+$)/.test(path)
+    || (path.startsWith("/internal/v1/api/files/") && query.has("sessionId"));
+  const scopeHint = scopedResource ? query.get("cwd") : null;
+  if (scopeHint !== null) {
+    const cwd = await validateSessionCwd(scopeHint);
+    return withSessionCwd(cwd, () => dispatch());
+  }
+  return dispatch();
+
+  async function dispatch(): Promise<void> {
+  const sessionMatch = /^\/internal\/v1\/api\/(?:sessions|agent|subagents)\/([^/]+)/.exec(path)
+    ?? (path.startsWith("/internal/v1/api/files/") && query.has("sessionId") ? ["", encodeURIComponent(query.get("sessionId")!)] : null);
+  // POST commands extract their lookup scope from JSON in routeAgentRequest.
+  if (sessionMatch && !(request.method === "POST" && /^\/internal\/v1\/api\/agent\/[^/]+$/.test(path))) {
+    let id: string;
+    try { id = decodeURIComponent(sessionMatch[1]); }
+    catch { throw Object.assign(new Error("Invalid session id"), { status: 400, code: "invalid_request" }); }
+    if (!["new", "running", "settings", "profiles"].includes(id)) {
+      const file = await resolveSessionPath(id);
+      const runtime = getRpcSession(id);
+      if (runtime?.isAlive()) assertSessionFileIdentity(runtime.sessionFile, id);
+      if (file && runtime?.isAlive()) assertDistinctSessions([{ id, path: file }, { id, path: runtime.sessionFile }]);
+      if (scopeHint !== null && runtime?.isAlive() && !file && runtime.cwd !== currentSessionCwd()) {
+        throw Object.assign(new Error("Session is outside the selected lookup scope"), { status: 403, code: "invalid_request" });
+      }
+    }
+  }
   if (await routeAuth(request, response, path, options.modelAuth)) return;
   if (await routeModels(request, response, path)) return;
   if (await routePush(request, response, path, options.push)) return;
@@ -85,4 +116,5 @@ export async function routeRequest(
     });
   }
   send(response, 404, agentError("invalid_request", "Not found", requestId));
+  }
 }

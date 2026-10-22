@@ -143,6 +143,22 @@ test("worktree removal honors Sessions rooted below the target path", async (t) 
   released.release();
 });
 
+test("worktree removal locks project-local CLI sessions not known to the runtime", async (t) => {
+  const root = repository(t);
+  const linked = join(`${root}-worktrees`, "local-locked");
+  git(root, "worktree", "add", "-b", "feature/local-locked", "--", linked);
+  const manager = SessionManager.create(linked, join(linked, ".pi", "sessions"));
+  const file = manager.getSessionFile();
+  writeFileSync(file, JSON.stringify(manager.getHeader()) + "\n");
+  const lease = acquireSessionLock(file, join(agentDir, "locks", "sessions"), "cli");
+  t.after(() => lease.release());
+  const base = await start(t);
+  const result = await request(base, "/internal/v1/api/worktrees", { method: "DELETE", body: JSON.stringify({ cwd: root, path: linked, force: true }) });
+  assert.equal(result.status, 409);
+  assert.equal(result.body.code, "session_locked");
+  assert.equal(existsSync(file), true);
+});
+
 test("internal worktrees reuse branches and require force for dirty removal", async (t) => {
   const root = repository(t);
   git(root, "branch", "feature/existing");

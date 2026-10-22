@@ -1,7 +1,7 @@
 {
   "project": {
     "name": "pi-agent-rpc",
-    "version": "0.2.0"
+    "version": "0.3.0"
   },
   "pi": {
     "repository": "https://github.com/earendil-works/pi",

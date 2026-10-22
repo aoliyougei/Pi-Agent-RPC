@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -12,6 +12,8 @@ const { acquireSessionLock } = await import("../dist/runtime/session-lock.js");
 
 test("subagent model validation failure releases the lease acquired before initialization", async (t) => {
   t.after(() => rmSync(dir, { recursive: true, force: true }));
+  mkdirSync(join(dir, ".pi"));
+  writeFileSync(join(dir, ".pi", "settings.json"), JSON.stringify({ sessionDir: ".pi/sessions" }));
   const { session: parent } = await startRpcSession("parent", "", dir, { toolNames: [] });
   t.after(() => parent.shutdown());
   let allocated;
@@ -22,6 +24,7 @@ test("subagent model validation failure releases the lease acquired before initi
     isBuiltInSubagentsEnabled: () => true,
     acquireSessionLease(file) {
       allocated = file;
+      assert.ok(file.startsWith(join(dir, ".pi", "sessions") + "/"));
       const lease = acquireSessionLock(file, locks, "rpc-child");
       assert.throws(() => acquireSessionLock(file, locks, "cli"), { code: "session_locked" });
       return () => { released = true; lease.release(); };

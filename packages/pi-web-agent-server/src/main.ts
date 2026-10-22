@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { PROTOCOL_VERSION, REQUIRED_CAPABILITIES } from "@aoliyougei/pi-agent-contract";
+import { OPTIONAL_CAPABILITIES, PROTOCOL_VERSION, REQUIRED_CAPABILITIES } from "@aoliyougei/pi-agent-contract";
 import { loadToken } from "./config.js";
 import { configureHttpDispatcher } from "./dependencies/http-dispatcher.js";
 import { createAgentRouteAdapter } from "./runtime/agent-adapter.js";
@@ -21,10 +21,10 @@ const app = createAgentServer({
   eventBufferCapacity,
   version: {
     protocolVersion: PROTOCOL_VERSION,
-    serverVersion: "0.2.0",
+    serverVersion: "0.3.0",
     piVersion: "1.2.0",
     piRevision: "06a466935536f8c9bcacb2d5efc0fc021be1bdff",
-    capabilities: [...REQUIRED_CAPABILITIES],
+    capabilities: [...REQUIRED_CAPABILITIES, ...OPTIONAL_CAPABILITIES],
   },
 });
 await app.listen(host, port);

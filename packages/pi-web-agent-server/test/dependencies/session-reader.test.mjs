@@ -473,7 +473,7 @@ test("keeps forward and reverse session path caches in sync", async () => {
   cacheSessionPath(sessionId, filePath);
   try {
     assert.equal(
-      await resolveSessionIdByPath(filePath),
+      globalThis.__piPathToSessionIdCache?.get(sessionPathKey(filePath)),
       sessionId,
     );
   } finally {
@@ -544,7 +544,7 @@ test("does not resolve a parent path outside the default session storage", async
   });
 
   assert.equal(await resolveSessionIdByPath(externalPath), undefined);
-  assert.equal(scans, 1);
+  assert.equal(scans, 0);
 });
 
 test(
@@ -606,7 +606,7 @@ test(
   },
 );
 
-test("falls back to the catalogue when a targeted candidate header is invalid", async (t) => {
+test("rejects a targeted candidate with a mismatched header without trusting the catalogue",  async (t) => {
   const agentDir = mkdtempSync(join(tmpdir(), "pi-web-targeted-fallback-"));
   const sessionId = "target-session";
   const projectDir = join(agentDir, "sessions", "project");
@@ -631,10 +631,10 @@ test("falls back to the catalogue when a targeted candidate header is invalid", 
   });
 
   assert.equal(await resolveSessionPath(sessionId), null);
-  assert.equal(scans, 1);
+  assert.equal(scans, 0);
 });
 
-test("falls back to the catalogue when a targeted lookup finds duplicate IDs", async (t) => {
+test("rejects duplicate header IDs instead of accepting a catalogue winner",  async (t) => {
   const agentDir = mkdtempSync(join(tmpdir(), "pi-web-targeted-duplicate-"));
   const sessionId = "target-session";
   for (const projectName of ["project-a", "project-b"]) {
@@ -679,8 +679,8 @@ test("falls back to the catalogue when a targeted lookup finds duplicate IDs", a
     SessionManager.listAll = originalListAll;
   });
 
-  assert.equal(await resolveSessionPath(sessionId), fallbackPath);
-  assert.equal(scans, 1);
+  await assert.rejects(resolveSessionPath(sessionId), (error) => error.code === "session_id_conflict" && error.status === 409);
+  assert.equal(scans, 0);
 });
 
 test("forced session listing bypasses the fresh server cache", async (t) => {

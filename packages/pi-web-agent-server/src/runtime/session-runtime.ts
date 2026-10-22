@@ -1974,13 +1974,17 @@ export async function startRpcSession(
   let lease: ReturnType<typeof acquireSessionLock> | undefined;
   const lockDirectory = joinPath(getAgentDir(), "locks", "sessions");
   try {
+  let settingsManager: SettingsManager;
   let sessionManager: SessionManager;
   if (sessionFile) {
     lease = acquireSessionLock(sessionFile, lockDirectory, "rpc");
     sessionManager = SessionManager.open(sessionFile, undefined);
+    settingsManager = SettingsManager.create(sessionManager.getCwd(), getAgentDir());
   } else {
     if (!cwd) throw new Error("cwd is required for a new session");
-    sessionManager = SessionManager.create(cwd, undefined);
+    settingsManager = SettingsManager.create(cwd, getAgentDir());
+    const sessionDir = settingsManager.getSessionDir();
+    sessionManager = SessionManager.create(cwd, sessionDir ? resolve(cwd, sessionDir) : undefined);
     lease = acquireSessionLock(sessionManager.getSessionFile()!, lockDirectory, "rpc");
   }
   const sessionCwd = sessionManager.getCwd();
@@ -2031,7 +2035,6 @@ export async function startRpcSession(
       : chatOnly
         ? undefined
         : projectTrustReloadOptions(sessionCwd, agentDir);
-    const settingsManager = SettingsManager.create(sessionCwd, agentDir);
     const services = await createAgentSessionServices({
       cwd: sessionCwd,
       agentDir,

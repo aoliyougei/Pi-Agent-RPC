@@ -38,10 +38,10 @@ RUN files=$(find /artifacts/pi-packages /artifacts/server -name '*.tgz' -type f 
     /artifacts/runtime/bin/pi --version
 
 FROM registry.aoliyougei.com/library/node:22-alpine AS runtime
-LABEL io.pi-agent-rpc.version="0.2.0" \
+LABEL io.pi-agent-rpc.version="0.3.0" \
       io.pi-agent.version="1.2.0" \
       io.pi-agent.revision="06a466935536f8c9bcacb2d5efc0fc021be1bdff" \
-      io.pi-agent-server.version="0.2.0" \
+      io.pi-agent-server.version="0.3.0" \
       io.pi-agent-contract.version="0.1.0"
 ENV HOME=/home/node PI_CODING_AGENT_DIR=/home/node/.pi/agent PI_AGENT_RPC_HOST=0.0.0.0 PI_AGENT_RPC_PORT=8080
 RUN apk add --no-cache bash ca-certificates curl fd file git jq openssh-client ripgrep && \

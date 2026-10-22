@@ -8,6 +8,7 @@ import { projectTreeForResponse } from "../dependencies/project-tree.js";
 import { exportSessionHtml } from "../dependencies/session-export.js";
 import {
   attachSessionProjectInfo,
+  assertDistinctSessions,
   buildSessionContext,
   listAllSessions,
   mergeSessionLists,
@@ -26,6 +27,7 @@ import { readSessionToolSelection } from "../dependencies/session-tool-selection
 import { readSubagentRun, readSubagentSessionResources, SUBAGENT_META_TYPE } from "../dependencies/subagents.js";
 import { sessionPathKey } from "../dependencies/session-path.js";
 import { MAX_TOOL_RESULT_IMAGE_BYTES, TOOL_RESULT_IMAGE_MIMES } from "../dependencies/tool-result-images.js";
+import { currentSessionCwd, regularSessionPath } from "../dependencies/session-scope.js";
 import type { SessionEntry, SessionInfo } from "../dependencies/types.js";
 import { acquireSessionLock } from "../runtime/session-lock.js";
 import {
@@ -45,8 +47,8 @@ function send(response: ServerResponse, status: number, body: unknown, headers: 
 }
 
 function locked(response: ServerResponse, request: IncomingMessage, error: unknown): boolean {
-  if (!error || typeof error !== "object" || !("code" in error) || error.code !== "session_locked") return false;
-  send(response, 409, { error: { code: "session_locked", message: error instanceof Error ? error.message : "Session locked", requestId: request.headers["x-request-id"]?.toString() ?? "unknown" } });
+  if (!error || typeof error !== "object" || !("code" in error) || !["session_locked", "session_id_conflict"].includes(String(error.code))) return false;
+  send(response, 409, { error: { code: error.code, message: error instanceof Error ? error.message : "Session locked", requestId: request.headers["x-request-id"]?.toString() ?? "unknown" } });
   return true;
 }
 
@@ -74,9 +76,14 @@ async function attachWorkspaceIdentities(sessions: SessionInfo[]): Promise<Sessi
 async function list(request: IncomingMessage, response: ServerResponse): Promise<void> {
   const force = new URL(request.url!, "http://internal").searchParams.get("force") === "1";
   const [persisted, live] = await Promise.all([
-    listAllSessions({ force }),
+    listAllSessions({ force, cwd: currentSessionCwd() }),
     attachSessionProjectInfo(getRpcSessionInfos()),
   ]);
+  assertDistinctSessions([...persisted, ...live]);
+  for (const session of persisted) {
+    const runtime = getRpcSession(session.id);
+    if (runtime?.isAlive()) assertDistinctSessions([session, { id: session.id, path: runtime.sessionFile }]);
+  }
   send(response, 200, {
     sessions: await attachWorkspaceIdentities(mergeSessionLists(persisted, live)),
     runningSessionIds: getRunningRpcSessionIds(),
@@ -217,13 +224,14 @@ async function remove(response: ServerResponse, id: string): Promise<void> {
   const lockDirectory = join(getAgentDir(), "locks", "sessions");
   const leases = [acquireSessionLock(file, lockDirectory, "rpc-session-delete")];
   try {
-    const parentPath = readSessionHeader(file)?.parentSession;
-    const parentId = parentPath ? readSessionHeader(parentPath)?.id : undefined;
+    const savedParent = readSessionHeader(file)?.parentSession;
+    const parentId = savedParent ? await resolveSessionIdByPath(savedParent) : undefined;
+    const parentPath = parentId ? savedParent : undefined;
     const key = sessionPathKey(file);
     const children = readdirSync(dirname(file))
       .filter((name) => name.endsWith(".jsonl"))
       .map((name) => join(dirname(file), name))
-      .filter((path) => sessionPathKey(path) !== key && sessionPathKey(readSessionHeader(path)?.parentSession ?? "") === key);
+      .filter((path) => regularSessionPath(path, dirname(file)) && sessionPathKey(path) !== key && sessionPathKey(readSessionHeader(path)?.parentSession ?? "") === key);
     for (const child of children.sort()) leases.push(acquireSessionLock(child, lockDirectory, "rpc-session-reparent"));
     for (const child of children) {
       try {
@@ -331,7 +339,7 @@ async function state(response: ServerResponse, id: string): Promise<void> {
 
 export async function routeSessions(request: IncomingMessage, response: ServerResponse, path: string): Promise<boolean> {
   if (request.method === "GET" && path === ROOT) {
-    try { await list(request, response); } catch (error) { send(response, 500, { error: String(error) }, { "cache-control": "no-store" }); }
+    try { await list(request, response); } catch (error) { if (!locked(response, request, error)) throw error; }
     return true;
   }
   const naming = /^\/internal\/v1\/api\/sessions\/([^/]+)\/auto-name$/.exec(path);

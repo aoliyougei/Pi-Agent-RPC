@@ -1,11 +1,12 @@
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync, realpathSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { join } from "node:path";
 import { allowFileRoot } from "../dependencies/allowed-roots.js";
 import { getAllowedFileRoots, isExistingFilePathAllowed, isFilePathAllowed } from "../dependencies/file-access.js";
 import { projectIdentityKey } from "../dependencies/project-identity.js";
 import { isExistingPathWithinRoots, isPathWithinRoots } from "../dependencies/path-security.js";
-import { getAgentDir, listAllSessions } from "../dependencies/session-reader.js";
+import { getAgentDir, listAllSessions, readSessionHeader } from "../dependencies/session-reader.js";
+import { projectSessionsDirectory, regularSessionPath } from "../dependencies/session-scope.js";
 import { addWorktree, findCurrentWorktreePath, listWorktrees, removeWorktree, resolveProject, type WorktreeInfo } from "../dependencies/worktree.js";
 import { readJson } from "./agent.js";
 import { getRpcSessionOwnerships } from "../runtime/session-runtime.js";
@@ -71,10 +72,18 @@ async function remove(request: IncomingMessage, response: ServerResponse): Promi
   const cwd = value.cwd, worktreePath = value.path;
   if (!await allowed(cwd)) { send(response, 403, { error: "Access denied" }); return; }
   const lockDirectory = join(getAgentDir(), "locks", "sessions");
-  const sessionFiles = sessionFilesUnderWorktree(worktreePath, [
+  // The target need not have been selected in the UI; verify Git membership first.
+  const worktrees = await listWorktrees(cwd);
+  if (!worktrees.some((item) => realpathSync(item.path) === realpathSync(worktreePath))) {
+    throw new Error("Path is not a worktree of this repository");
+  }
+  const directory = projectSessionsDirectory(realpathSync(worktreePath));
+  const localFiles = directory ? readdirSync(directory).filter((name) => name.endsWith(".jsonl"))
+    .map((name) => join(directory, name)).filter((file) => regularSessionPath(file, directory) && readSessionHeader(file)) : [];
+  const sessionFiles = [...new Set([...sessionFilesUnderWorktree(worktreePath, [
     ...await listAllSessions({ force: true }),
     ...getRpcSessionOwnerships(),
-  ]);
+  ]), ...localFiles])].sort();
   const leases: Array<ReturnType<typeof acquireSessionLock>> = [];
   try {
     for (const file of sessionFiles) leases.push(acquireSessionLock(file, lockDirectory, "rpc-worktree-remove"));

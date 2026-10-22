@@ -1,4 +1,5 @@
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
+import { resolve } from "node:path";
 import {
   createAgentSessionFromServices,
   createAgentSessionServices,
@@ -51,7 +52,7 @@ export interface SubagentRuntimeDependencies {
     options?: { exactSystemPrompt?: string; chatOnly?: boolean; releaseSessionLease?: () => void },
   ): void;
   reopenSession(sessionId: string, sessionFile: string): Promise<HostSession>;
-  resolveSessionPath(sessionId: string): Promise<string | null>;
+  resolveSessionPath(sessionId: string, cwd?: string): Promise<string | null>;
   invalidateSessionList(): void;
   isBuiltInSubagentsEnabled?(): boolean;
 }
@@ -67,6 +68,7 @@ type StoredSubagentExecution = {
   run: SubagentRunInfo;
   completion: Promise<SubagentRunInfo>;
   abortRequested: boolean;
+  parentCwd: string;
 };
 
 declare global {
@@ -212,7 +214,8 @@ export function createSubagentController(
         settingsManager.getDefaultTools(),
       );
 
-      const sessionManager = SessionManager.create(parent.cwd, undefined, { parentSession: parent.sessionFile });
+      const sessionDir = settingsManager.getSessionDir();
+      const sessionManager = SessionManager.create(parent.cwd, sessionDir ? resolve(parent.cwd, sessionDir) : undefined, { parentSession: parent.sessionFile });
       releaseLease = dependencies.acquireSessionLease?.(sessionManager.getSessionFile()!);
       const createdAt = new Date().toISOString();
       const metadata: SubagentMetadata = {
@@ -288,6 +291,7 @@ export function createSubagentController(
         run: initialRun,
         completion: Promise.resolve(initialRun),
         abortRequested: false,
+        parentCwd: parent.cwd,
       };
       getSubagentRuns().set(initialRun.sessionId, stored);
       request.onUpdate?.(initialRun);
@@ -392,7 +396,7 @@ export function createSubagentController(
   async function notifyParent(run: SubagentRunInfo): Promise<void> {
     let parent = dependencies.getSession(run.parentSessionId);
     if (!parent?.isAlive()) {
-      const sessionFile = await dependencies.resolveSessionPath(run.parentSessionId);
+      const sessionFile = await dependencies.resolveSessionPath(run.parentSessionId, getSubagentRuns().get(run.sessionId)?.parentCwd);
       if (!sessionFile) throw new Error(`Parent session not found: ${run.parentSessionId}`);
       parent = await dependencies.reopenSession(run.parentSessionId, sessionFile);
     }

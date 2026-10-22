@@ -6,6 +6,7 @@ export type AgentErrorCode =
   | "request_too_large"
   | "session_not_found"
   | "session_locked"
+  | "session_id_conflict"
   | "request_id_conflict"
   | "request_settled"
   | "agent_unavailable"
