@@ -1,6 +1,6 @@
 {
   "name": "@aoliyougei/pi-web-agent-server",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "type": "module",
   "bin": {
     "pi-agent-rpc": "dist/main.js"
@@ -23,10 +23,10 @@
     "web-push": "^3.6.7"
   },
   "peerDependencies": {
-    "@earendil-works/pi-agent-core": "1.2.0",
-    "@earendil-works/pi-ai": "1.2.0",
-    "@earendil-works/pi-coding-agent": "1.2.0",
-    "@earendil-works/pi-tui": "1.2.0"
+    "@earendil-works/pi-agent-core": "1.4.0",
+    "@earendil-works/pi-ai": "1.4.0",
+    "@earendil-works/pi-coding-agent": "1.4.0",
+    "@earendil-works/pi-tui": "1.4.0"
   },
   "peerDependenciesMeta": {
     "@earendil-works/pi-agent-core": {

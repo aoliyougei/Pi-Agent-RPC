@@ -12,7 +12,7 @@ async function fixture(t, fail = false) {
   const dir = mkdtempSync(join(tmpdir(), "pi-runtime-lock-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const locks = join(dir, "locks");
-  const guard = installSessionManagerLocks(SessionManager, { directory: locks, owner: "cli", piVersion: "1.2.0" });
+  const guard = installSessionManagerLocks(SessionManager, { directory: locks, owner: "cli", piVersion: "1.4.0" });
   t.after(() => guard.uninstall());
   t.after(installSessionRuntimeLocks(guard));
   const manager = SessionManager.create(dir, dir);

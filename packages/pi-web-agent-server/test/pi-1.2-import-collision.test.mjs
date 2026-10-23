@@ -16,7 +16,7 @@ test("Pi 1.2 import locks the suffixed destination and preserves an existing fil
   const source = join(root, "import.jsonl"), existing = join(sessions, "import.jsonl"), target = join(sessions, "import-1.jsonl");
   writeFileSync(source, JSON.stringify({ type: "session", version: 3, id: "import", timestamp: new Date().toISOString(), cwd: root }) + "\n");
   writeFileSync(existing, "preserve existing bytes");
-  const guard = installSessionManagerLocks(SessionManager, { directory: locks, owner: "cli", piVersion: "1.2.0" });
+  const guard = installSessionManagerLocks(SessionManager, { directory: locks, owner: "cli", piVersion: "1.4.0" });
   t.after(() => guard.uninstall());
   t.after(installSessionImportLocks(guard));
   const manager = SessionManager.create(root, sessions);

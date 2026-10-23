@@ -8,7 +8,7 @@ let installed = false;
 export function installSessionRuntimeLocks(guard: ReturnType<typeof installSessionManagerLocks>) {
   const prototype = AgentSessionRuntime.prototype as unknown as Record<string, Method>;
   const names = ["switchSession", "newSession", "fork", "importFromJsonl", "teardownCurrent", "dispose"];
-  if (VERSION !== "1.2.0" || names.some((name) => typeof prototype[name] !== "function")) {
+  if (VERSION !== "1.4.0" || names.some((name) => typeof prototype[name] !== "function")) {
     throw new Error("Unsupported Pi Runtime lifecycle boundary");
   }
   if (installed) throw new Error("Runtime locks are already installed");

@@ -25,7 +25,7 @@ test("guarded SDK open rejects before empty-file initialization and keeps origin
   const child = spawnSync(process.execPath, ["--input-type=module", "-e", `
     import { SessionManager } from '@earendil-works/pi-coding-agent';
     import { installSessionManagerLocks } from ${JSON.stringify(subject.href)};
-    installSessionManagerLocks(SessionManager, { directory: process.argv[2], owner: 'cli', piVersion: '1.2.0' });
+    installSessionManagerLocks(SessionManager, { directory: process.argv[2], owner: 'cli', piVersion: '1.4.0' });
     for (const open of [() => SessionManager.open(process.argv[1]), () => SessionManager.create(process.cwd()).setSessionFile(process.argv[1])]) {
       try { open(); process.exit(2); }
       catch (error) { if (error.code !== 'session_locked') throw error; }
@@ -43,7 +43,7 @@ test("new, continue and setSessionFile share kernel ownership until each manager
   const dir = mkdtempSync(join(tmpdir(), "pi-sdk-lock-"));
   const locks = join(dir, "locks");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
-  const guard = installSessionManagerLocks(SessionManager, { directory: locks, owner: "cli", piVersion: "1.2.0" });
+  const guard = installSessionManagerLocks(SessionManager, { directory: locks, owner: "cli", piVersion: "1.4.0" });
   t.after(() => guard.uninstall());
   const file = join(dir, "existing.jsonl");
   writeFileSync(file, JSON.stringify({ type: "session", version: 3, id: "test", timestamp: new Date().toISOString(), cwd: dir }) + "\n");
@@ -69,7 +69,7 @@ test("released manager cannot write while a competing owner holds its file", asy
   const dir = mkdtempSync(join(tmpdir(), "pi-sdk-lock-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const locks = join(dir, "locks");
-  const guard = installSessionManagerLocks(SessionManager, { directory: locks, owner: "cli", piVersion: "1.2.0" });
+  const guard = installSessionManagerLocks(SessionManager, { directory: locks, owner: "cli", piVersion: "1.4.0" });
   t.after(() => guard.uninstall());
   const file = join(dir, "existing.jsonl");
   const bytes = JSON.stringify({ type: "session", version: 3, id: "test", timestamp: new Date().toISOString(), cwd: dir }) + "\n";
@@ -94,7 +94,7 @@ test("a malformed target rolls back manager state and releases only the target l
   const dir = mkdtempSync(join(tmpdir(), "pi-sdk-rollback-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const locks = join(dir, "locks");
-  const guard = installSessionManagerLocks(SessionManager, { directory: locks, owner: "cli", piVersion: "1.2.0" });
+  const guard = installSessionManagerLocks(SessionManager, { directory: locks, owner: "cli", piVersion: "1.4.0" });
   t.after(() => guard.uninstall());
   const manager = SessionManager.create(dir, dir);
   manager.appendSessionInfo("original");
@@ -113,7 +113,7 @@ test("newSession lock conflict restores the previous in-memory branch", async (t
   const dir = mkdtempSync(join(tmpdir(), "pi-sdk-rollback-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const locks = join(dir, "locks");
-  const guard = installSessionManagerLocks(SessionManager, { directory: locks, owner: "cli", piVersion: "1.2.0" });
+  const guard = installSessionManagerLocks(SessionManager, { directory: locks, owner: "cli", piVersion: "1.4.0" });
   t.after(() => guard.uninstall());
   const manager = SessionManager.create(dir, dir);
   manager.appendSessionInfo("original");
@@ -132,7 +132,7 @@ test("newSession lock conflict restores the previous in-memory branch", async (t
 test("a supplied version cannot authorize a foreign manager class", async () => {
   const { installSessionManagerLocks } = await import(subject);
   class ForeignManager extends SessionManager {}
-  assert.throws(() => installSessionManagerLocks(ForeignManager, { directory: "/unused", owner: "cli", piVersion: "1.2.0" }), /Unsupported/);
+  assert.throws(() => installSessionManagerLocks(ForeignManager, { directory: "/unused", owner: "cli", piVersion: "1.4.0" }), /Unsupported/);
 });
 
 test("a failed switch retains the old manager and its lease", async (t) => {
@@ -140,7 +140,7 @@ test("a failed switch retains the old manager and its lease", async (t) => {
   const dir = mkdtempSync(join(tmpdir(), "pi-sdk-lock-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const locks = join(dir, "locks");
-  const guard = installSessionManagerLocks(SessionManager, { directory: locks, owner: "cli", piVersion: "1.2.0" });
+  const guard = installSessionManagerLocks(SessionManager, { directory: locks, owner: "cli", piVersion: "1.4.0" });
   t.after(() => guard.uninstall());
   const manager = SessionManager.create(dir, dir);
   const original = manager.getSessionFile();

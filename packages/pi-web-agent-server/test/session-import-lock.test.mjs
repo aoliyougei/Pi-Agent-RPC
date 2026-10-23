@@ -19,7 +19,7 @@ async function fixture(t, cancelled = false) {
   const header = JSON.stringify({ type: "session", version: 3, id: "import", timestamp: new Date().toISOString(), cwd: dir }) + "\n";
   writeFileSync(source, header);
   // The initial import destination is absent.
-  const guard = installSessionManagerLocks(SessionManager, { directory: locks, owner: "cli", piVersion: "1.2.0" });
+  const guard = installSessionManagerLocks(SessionManager, { directory: locks, owner: "cli", piVersion: "1.4.0" });
   t.after(() => guard.uninstall());
   const uninstall = installSessionImportLocks(guard);
   t.after(uninstall);

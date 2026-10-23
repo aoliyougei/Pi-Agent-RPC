@@ -62,11 +62,11 @@ test("matches bare model id globs across providers without duplicates", async ()
   ]);
 });
 
-test("rejects an ambiguous bare exact model id before fuzzy matching", async () => {
-  await assert.rejects(
-    resolveVisibleModels(runtime, ["claude-sonnet-5"]),
-    /Ambiguous enabledModels entry.*acme-gateway\/claude-sonnet-5.*anthropic\/claude-sonnet-5.*provider\/modelId/,
-  );
+test("includes each provider for an ambiguous bare model id and reports the SDK warning", async () => {
+  const result = await resolveVisibleModels(runtime, ["claude-sonnet-5"]);
+  assert.deepEqual(refs(result).sort(), ["acme-gateway/claude-sonnet-5", "anthropic/claude-sonnet-5"]);
+  assert.equal(result.warnings.length, 1);
+  assert.match(result.warnings[0], /several providers.*provider\/id/);
 });
 
 test("accepts provider-qualified and unique bare exact model ids", async () => {
@@ -77,11 +77,18 @@ test("accepts provider-qualified and unique bare exact model ids", async () => {
   assert.deepEqual(refs(unique), ["acme-gateway-openai/gpt-5.6-sol"]);
 });
 
-test("rejects an ambiguous bare exact model id with a thinking suffix", async () => {
-  await assert.rejects(
-    resolveVisibleModels(runtime, ["claude-sonnet-5:high"]),
-    /Ambiguous enabledModels entry/,
-  );
+test("pins both ambiguous providers without discarding the warning", async () => {
+  const result = await resolveVisibleModels(runtime, ["claude-sonnet-5:high"]);
+  assert.deepEqual(result.thinkingLevelPins, { "anthropic/claude-sonnet-5": "high", "acme-gateway/claude-sonnet-5": "high" });
+  assert.equal(result.warnings.length, 1);
+});
+
+test("keeps literal slash and colon IDs distinct from provider prefixes and thinking suffixes", async () => {
+  const models = [{ id: "qwen/qwen3:exacto", provider: "gateway", name: "Qwen" }];
+  const result = await resolveVisibleModels({ getAvailable: async () => models }, ["gateway/qwen/qwen3:exacto:high"]);
+  assert.deepEqual(refs(result), ["gateway/qwen/qwen3:exacto"]);
+  assert.deepEqual(result.thinkingLevelPins, { "gateway/qwen/qwen3:exacto": "high" });
+  assert.deepEqual(result.warnings, []);
 });
 
 test("keeps thinking-level suffixes out of the matched reference and reports them as pins", async () => {

@@ -41,6 +41,17 @@ test("keeps SDK scratch input only for an in-flight snapshot", () => {
   });
 });
 
+test("preserves malformed tool argument diagnostics in completed and streaming messages", () => {
+  for (const argumentsValue of [{}, null, "bad", []]) {
+    const message = assistant({ type: "toolCall", id: "bad-call", name: "write", arguments: argumentsValue, argumentsError: 'Invalid JSON: {"path":' });
+    for (const normalize of [normalizeToolCalls, normalizeStreamingToolCalls]) {
+      const block = normalize(message).content[0];
+      assert.deepEqual(block.input, {});
+      assert.equal(block.argumentsError, 'Invalid JSON: {"path":');
+    }
+  }
+});
+
 test("removes a client raw buffer when normalizing a completed message", () => {
   const message = assistant({
     type: "toolCall",

@@ -7,7 +7,7 @@ The originating checkout was not modified. The original MIT license is retained
 as `LICENSE` in this directory. Backend changes now belong in this repository.
 
 The HTTP protocol remains v1 and the contract package remains 0.1.0. The server
-package and this project are 0.3.0, targeting the vendored Pi 1.2.0 SDK.
+package and this project are 0.4.0, targeting the vendored Pi 1.4.0 SDK.
 
 The repository root npm workspace links these packages to the local Pi packages.
 Docker builds Pi independently with its official lockfile, then compiles the

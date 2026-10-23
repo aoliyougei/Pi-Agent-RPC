@@ -32,7 +32,7 @@ async function start() {
   throw new Error(`Server startup timed out: ${error}`);
 }
 try {
-  assert.equal(spawnSync("pi", ["--version"], { env, encoding: "utf8" }).stdout.trim(), "1.2.0");
+  assert.equal(spawnSync("pi", ["--version"], { env, encoding: "utf8" }).stdout.trim(), "1.4.0");
   let rejected = spawnSync("pi-agent-rpc", [], { env, encoding: "utf8", timeout: 10000 });
   assert.notEqual(rejected.status, 0);
   assert.match(rejected.stderr, /Invalid RPC token file/);
@@ -47,10 +47,10 @@ try {
   assert.equal((await fetch(`${base}/internal/v1/version`, { headers: { authorization: "Bearer wrong" } })).status, 401);
   assert.equal((await fetch(`${base}/internal/v1/health/ready`, { headers })).status, 200);
   const version = await (await fetch(`${base}/internal/v1/version`, { headers })).json();
-  assert.equal(version.serverVersion, "0.3.0");
-  assert.equal(version.piVersion, "1.2.0");
+  assert.equal(version.serverVersion, "0.4.0");
+  assert.equal(version.piVersion, "1.4.0");
   assert.equal(version.protocolVersion, 1);
-  assert.equal(version.piRevision, "06a466935536f8c9bcacb2d5efc0fc021be1bdff");
+  assert.equal(version.piRevision, "4a080252f06caf63a525d7873c5d94d3c23887e0");
   assert.equal(spawnSync("pi-agent-rpc-healthcheck", [], { env }).status, 0);
   const created = await fetch(`${base}/internal/v1/api/agent/new`, { method: "POST", headers, body: JSON.stringify({ cwd: root, type: "ensure_session" }) });
   assert.equal(created.status, 200);

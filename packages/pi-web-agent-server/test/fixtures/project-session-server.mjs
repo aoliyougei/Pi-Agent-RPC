@@ -5,7 +5,7 @@ import { OPTIONAL_CAPABILITIES, REQUIRED_CAPABILITIES } from "../../../agent-con
 const app = createAgentServer({
   token: "project-process-test",
   agent: createAgentRouteAdapter(),
-  version: { protocolVersion: 1, serverVersion: "0.2.0", piVersion: "1.2.0", piRevision: "06a466935536f8c9bcacb2d5efc0fc021be1bdff", capabilities: [...REQUIRED_CAPABILITIES, ...OPTIONAL_CAPABILITIES] },
+  version: { protocolVersion: 1, serverVersion: "0.2.0", piVersion: "1.4.0", piRevision: "4a080252f06caf63a525d7873c5d94d3c23887e0", capabilities: [...REQUIRED_CAPABILITIES, ...OPTIONAL_CAPABILITIES] },
 });
 await app.listen("127.0.0.1", 0);
 process.send({ port: app.address().port });

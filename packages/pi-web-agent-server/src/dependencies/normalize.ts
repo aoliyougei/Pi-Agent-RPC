@@ -26,6 +26,7 @@ function normalizeToolCallBlock(
   if (!isObject(block) || block.type !== "toolCall") return null;
   const normalized: ToolCallContent = {
     type: "toolCall",
+    ...(typeof block.argumentsError === "string" ? { argumentsError: block.argumentsError } : {}),
     toolCallId: typeof block.toolCallId === "string" ? block.toolCallId : (typeof block.id === "string" ? block.id : ""),
     toolName: typeof block.toolName === "string" ? block.toolName : (typeof block.name === "string" ? block.name : ""),
     input: typeof block.input === "object" && block.input !== null && !Array.isArray(block.input)

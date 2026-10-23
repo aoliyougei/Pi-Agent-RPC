@@ -10,7 +10,7 @@ let installed = false;
 
 /** Guard upstream's synchronous fork allocation without copying its serialization logic. */
 export function installSessionForkLocks(guard: ReturnType<typeof installSessionManagerLocks>) {
-  if (VERSION !== "1.2.0" || typeof SessionManager.forkFrom !== "function") throw new Error("Unsupported Pi fork boundary");
+  if (VERSION !== "1.4.0" || typeof SessionManager.forkFrom !== "function") throw new Error("Unsupported Pi fork boundary");
   if (installed) throw new Error("Session fork locks are already installed");
   const original = SessionManager.forkFrom;
   SessionManager.forkFrom = function (...args) {
@@ -21,7 +21,7 @@ export function installSessionForkLocks(guard: ReturnType<typeof installSessionM
     const write = fs.writeFileSync;
     let releaseTarget: (() => void) | undefined;
     try {
-      // No await/callback enters user code in Pi 1.2.0 forkFrom. Restore immediately
+      // No await/callback enters user code in Pi 1.4.0 forkFrom. Restore immediately
       // after the synchronous call; never leave a process-wide fs hook installed.
       fs.writeFileSync = function (file, ...writeArgs) {
         // Lease metadata writes use an already-open descriptor, not a Session path.

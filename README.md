@@ -5,15 +5,15 @@ in `source/upstream/pi` and the backend packages in `packages/`.
 
 | Component | Version |
 | --- | --- |
-| Project / Agent Server | 0.3.0 |
-| Official Pi | 1.2.0 |
+| Project / Agent Server | 0.4.0 |
+| Official Pi | 1.4.0 |
 | Contract / wire protocol | 0.1.0 / v1 |
 
 ## Build
 
 Use a Docker build environment (linux/amd64). `build-image.sh` is the human-facing
 Docker CLI entrypoint; automated agent work uses the Docker Engine API directly.
-The output tag is `pi-agent-rpc:0.3.0`. See `Dockerfile` and `UPSTREAM.md` for build
+The output tag is `pi-agent-rpc:0.4.0`. See `Dockerfile` and `UPSTREAM.md` for build
 inputs and provenance. Builds require network access; no API keys are needed.
 
 Pi's own lockfile governs its build. The root npm lockfile governs the backend
@@ -66,5 +66,5 @@ including the shared session-lock requirement for multiple RPC/CLI processes.
 ## Upgrade notes
 
 The Web repository is not changed here. Its Pi-version compatibility gate must
-accept 1.2.0 before the two projects can be deployed together. See
-`docs/releases/0.3.0.md` for verification and remaining limits.
+accept 1.4.0 before the two projects can be deployed together. See
+`docs/releases/0.4.0.md` for verification and remaining limits.

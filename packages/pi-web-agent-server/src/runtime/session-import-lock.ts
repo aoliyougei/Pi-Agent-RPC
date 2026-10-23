@@ -9,7 +9,7 @@ let installed = false;
 
 /** Hold the destination before upstream import copies bytes, including across async hooks. */
 export function installSessionImportLocks(guard: ReturnType<typeof installSessionManagerLocks>) {
-  if (VERSION !== "1.2.0" || typeof AgentSessionRuntime.prototype.importFromJsonl !== "function") {
+  if (VERSION !== "1.4.0" || typeof AgentSessionRuntime.prototype.importFromJsonl !== "function") {
     throw new Error("Unsupported Pi import boundary");
   }
   if (installed) throw new Error("Session import locks are already installed");

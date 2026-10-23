@@ -13,7 +13,7 @@ async function fixture(t) {
   const dir = fs.mkdtempSync(join(tmpdir(), "pi-fork-lock-"));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const locks = join(dir, "locks");
-  const guard = installSessionManagerLocks(SessionManager, { directory: locks, owner: "cli", piVersion: "1.2.0" });
+  const guard = installSessionManagerLocks(SessionManager, { directory: locks, owner: "cli", piVersion: "1.4.0" });
   t.after(() => guard.uninstall());
   t.after(installSessionForkLocks(guard));
   const source = join(dir, "source.jsonl");

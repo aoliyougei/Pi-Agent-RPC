@@ -13,7 +13,7 @@ test("selector deletion rejects a busy session before invoking trash/unlink and 
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const locks = join(dir, "locks"), file = join(dir, "session.jsonl");
   writeFileSync(file, JSON.stringify({ type: "session", version: 3, id: "test", cwd: dir, timestamp: new Date().toISOString() }) + "\n");
-  const guard = installSessionManagerLocks(SessionManager, { directory: locks, owner: "cli", piVersion: "1.2.0" });
+  const guard = installSessionManagerLocks(SessionManager, { directory: locks, owner: "cli", piVersion: "1.4.0" });
   t.after(() => guard.uninstall());
   const selector = Object.create(SessionSelectorComponent.prototype);
   let deleted = false;

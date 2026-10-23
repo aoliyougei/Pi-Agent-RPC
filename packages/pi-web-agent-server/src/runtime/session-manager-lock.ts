@@ -12,7 +12,7 @@ interface Manager {
 type Method = (this: Manager, ...args: unknown[]) => unknown;
 type Lease = ReturnType<typeof acquireSessionLock> & { users: number };
 
-// Pi 1.2.0 mutates these containers in place when replacing the current branch.
+// Pi 1.4.0 mutates these containers in place when replacing the current branch.
 // Snapshot only container structure, not the potentially large message payloads.
 function snapshot(manager: Manager) {
   const state = Object.fromEntries(Object.entries(manager).map(([key, value]) => [key,
@@ -26,7 +26,7 @@ export function installSessionManagerLocks(
   managerClass: { prototype: Manager },
   options: { directory: string; owner: string; piVersion: string },
 ) {
-  if (VERSION !== "1.2.0" || options.piVersion !== VERSION || managerClass !== SessionManager) {
+  if (VERSION !== "1.4.0" || options.piVersion !== VERSION || managerClass !== SessionManager) {
     throw new Error("Unsupported Pi SessionManager version or class");
   }
   const prototype = managerClass.prototype as unknown as Record<string, Method>;

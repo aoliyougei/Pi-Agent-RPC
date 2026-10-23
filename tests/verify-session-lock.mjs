@@ -22,7 +22,7 @@ function session() {
   return manager;
 }
 try {
-  assert.equal(spawnSync("pi", ["--version"], { encoding: "utf8" }).stdout.trim(), "1.2.0");
+  assert.equal(spawnSync("pi", ["--version"], { encoding: "utf8" }).stdout.trim(), "1.4.0");
   const token = randomBytes(32).toString("hex"), secret = join(dir, "token");
   writeFileSync(secret, token, { mode: 0o400 });
   const server = spawn("pi-agent-rpc", [], { env: { ...process.env, PI_AGENT_RPC_TOKEN_FILE: secret, PI_AGENT_RPC_PORT: "18088", PI_AGENT_RPC_HOST: "127.0.0.1" }, stdio: ["ignore", "pipe", "pipe"] });

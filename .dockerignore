@@ -1,4 +1,8 @@
 .git
+**/.git
+.pi
+.worktrees
+.superpowers
 node_modules
 **/node_modules
 **/dist
